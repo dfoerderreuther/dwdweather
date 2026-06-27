@@ -1,0 +1,36 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# build output
+dist
+.vite
+
+# cloudflare / wrangler
+.wrangler
+.dev.vars
+.dev.vars.*
+wrangler.toml.bak
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# editor / os
+.DS_Store
+.idea
+.vscode
+*.swp
+Thumbs.db
+
+# misc
+coverage
+*.local
