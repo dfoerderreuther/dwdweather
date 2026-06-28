@@ -36,6 +36,26 @@ function pushStation(id) {
   if (window.location.pathname !== path) window.history.pushState({ id }, '', path)
 }
 
+// ---- map (MapTiler) consent -----------------------------------------------
+// The only third-party that sets a cookie / sees the user's IP is MapTiler, and
+// only when the map loads. We gate that behind explicit consent, remembered in
+// localStorage (not a cookie). Values: 'granted' | 'denied' | null (undecided).
+const CONSENT_KEY = 'map-consent'
+function readConsent() {
+  try {
+    return localStorage.getItem(CONSENT_KEY)
+  } catch {
+    return null
+  }
+}
+function writeConsent(v) {
+  try {
+    localStorage.setItem(CONSENT_KEY, v)
+  } catch {
+    /* private mode / storage disabled — fall back to in-memory only */
+  }
+}
+
 export default function App() {
   const [stations, setStations] = useState(null)
   const [stationsErr, setStationsErr] = useState(null)
@@ -47,6 +67,12 @@ export default function App() {
   // picker + map collapse once a station is chosen; this re-opens them to browse
   const [browseOpen, setBrowseOpen] = useState(false)
   const [route, setRoute] = useState(window.location.pathname)
+  const [consent, setConsentState] = useState(readConsent)
+
+  function decideConsent(v) {
+    writeConsent(v)
+    setConsentState(v)
+  }
 
   // load catalogue once
   useEffect(() => {
@@ -134,6 +160,13 @@ export default function App() {
         </header>
         <Imprint onHome={() => go('/')} />
         <Footer onImprint={() => go('/imprint')} />
+        {consent == null && (
+          <ConsentBanner
+            onAccept={() => decideConsent('granted')}
+            onDecline={() => decideConsent('denied')}
+            onImprint={() => go('/imprint')}
+          />
+        )}
       </div>
     )
   }
@@ -196,7 +229,11 @@ export default function App() {
                   elevation. Click any to load it.
                 </span>
               </div>
-              <StationsMap stations={mapStations || stations} selectedId={selectedId} onSelect={select} />
+              {consent === 'granted' ? (
+                <StationsMap stations={mapStations || stations} selectedId={selectedId} onSelect={select} />
+              ) : (
+                <MapGate onEnable={() => decideConsent('granted')} onImprint={() => go('/imprint')} />
+              )}
             </section>
           )}
         </>
@@ -233,6 +270,71 @@ export default function App() {
       )}
 
       <Footer onImprint={() => go('/imprint')} />
+      {consent == null && (
+        <ConsentBanner
+          onAccept={() => decideConsent('granted')}
+          onDecline={() => decideConsent('denied')}
+          onImprint={() => go('/imprint')}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function MapGate({ onEnable, onImprint }) {
+  return (
+    <div className="map-gate">
+      <p className="map-gate-title">Interactive map is off</p>
+      <p className="map-gate-text">
+        The map is loaded from MapTiler, which sets a cookie and receives your IP address. Nothing
+        else on this site uses cookies.
+      </p>
+      <div className="map-gate-actions">
+        <button className="map-gate-btn" onClick={onEnable}>
+          Load map
+        </button>
+        <a
+          href="/imprint"
+          className="map-gate-link"
+          onClick={(e) => {
+            e.preventDefault()
+            onImprint()
+          }}
+        >
+          Details
+        </a>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function ConsentBanner({ onAccept, onDecline, onImprint }) {
+  return (
+    <div className="consent" role="dialog" aria-label="Cookie consent">
+      <p className="consent-text">
+        This site sets no cookies of its own. The interactive map (MapTiler) sets one cookie and
+        receives your IP address only if you enable it.{' '}
+        <a
+          href="/imprint"
+          className="consent-link"
+          onClick={(e) => {
+            e.preventDefault()
+            onImprint()
+          }}
+        >
+          Learn more
+        </a>
+      </p>
+      <div className="consent-actions">
+        <button className="consent-btn ghost" onClick={onDecline}>
+          Decline
+        </button>
+        <button className="consent-btn primary" onClick={onAccept}>
+          Allow map
+        </button>
+      </div>
     </div>
   )
 }
