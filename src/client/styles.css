@@ -176,6 +176,52 @@ a {
   position: relative;
   z-index: 30;
 }
+/* collapsed station bar (shown once a station is selected) */
+.browse-bar {
+  width: 100%;
+  margin: 28px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--paper);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+.browse-bar:hover {
+  border-color: var(--ink-soft);
+  transform: translateY(-1px);
+}
+.browse-name {
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.browse-cta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.chev {
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+.chev[data-open='true'] {
+  transform: rotate(-135deg);
+}
 .finder-label {
   margin-bottom: 12px;
 }
@@ -1008,6 +1054,52 @@ a {
   color: var(--cold);
 }
 
+/* ------------------------------------------------------------------- imprint */
+.masthead-link {
+  cursor: pointer;
+}
+.imprint {
+  max-width: 660px;
+  margin: 36px auto 24px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.imprint h2 {
+  font-size: 26px;
+  color: var(--ink);
+  margin: 0 0 20px;
+  letter-spacing: -0.02em;
+}
+.imprint h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  margin: 26px 0 6px;
+}
+.imprint p {
+  margin: 0;
+}
+.imprint a {
+  color: var(--cold);
+  text-underline-offset: 3px;
+}
+.imprint-back {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 22px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.imprint-back:hover {
+  color: var(--ink);
+}
+
 /* ------------------------------------------------------------- empty state */
 .empty-hero {
   margin-top: 56px;
@@ -1045,6 +1137,9 @@ a {
   color: #fff;
   border-color: var(--ink);
   transform: translateY(-2px);
+}
+.chip-year {
+  opacity: 0.5; /* dimmed in both rest & hover states (inherits chip colour) */
 }
 
 @media (prefers-reduced-motion: reduce) {

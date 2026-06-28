@@ -1,6 +1,11 @@
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
+// Bump when the /api/data response shape changes — the param becomes part of the
+// browser cache key, so a new version instantly bypasses stale cached responses
+// (e.g. Safari holding a day-old payload from before new fields existed).
+const DATA_VERSION = 2
+
 export async function getStations() {
   const r = await fetch('/api/stations')
   if (!r.ok) throw new Error(`Could not load stations (${r.status})`)
@@ -9,7 +14,7 @@ export async function getStations() {
 }
 
 export async function getStationData(id) {
-  const r = await fetch(`/api/data?station=${encodeURIComponent(id)}`)
+  const r = await fetch(`/api/data?station=${encodeURIComponent(id)}&v=${DATA_VERSION}`)
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.error || `Could not load data (${r.status})`)
   return j

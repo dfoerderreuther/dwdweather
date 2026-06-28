@@ -14,6 +14,10 @@ const HIST_DIR = `${DWD_BASE}/historical/`
 const RECENT_DIR = `${DWD_BASE}/recent/`
 
 const ONE_DAY = 86400
+// Short *browser* cache so data/schema changes propagate within minutes, but a
+// long *shared* cache (s-maxage) keeps the Cloudflare edge serving for a day and
+// shields DWD's servers. The in-function caches.default also honours s-maxage.
+const CACHE_CONTROL = `public, max-age=600, s-maxage=${ONE_DAY}`
 
 // ---------------------------------------------------------------------------
 // /api/stations  — the catalogue of weather stations
@@ -31,10 +35,19 @@ export async function handleStations(ctx) {
 
   const stations = parseStations(text)
   const out = json({ count: stations.length, stations }, 200, {
-    'Cache-Control': `public, max-age=${ONE_DAY}`,
+    'Cache-Control': CACHE_CONTROL,
   })
   ctx.waitUntil(cache.put(cacheKey, out.clone()))
   return out
+}
+
+// The parsed station catalogue as an array (shares the same cache as the
+// /api/stations endpoint). Used server-side to resolve a station name for meta
+// tags without an extra round trip.
+export async function loadStations(ctx) {
+  const out = await handleStations(ctx)
+  const { stations } = await out.json()
+  return stations
 }
 
 function parseStations(text) {
@@ -78,7 +91,7 @@ export async function handleData(url, ctx) {
   if (!/^\d{5}$/.test(id)) return json({ error: 'Invalid station id' }, 400)
 
   const cache = caches.default
-  const cacheKey = new Request(`https://dwd.cache/v1/data/${id}`)
+  const cacheKey = new Request(`https://dwd.cache/v2/data/${id}`)
   const hit = await cache.match(cacheKey)
   if (hit) return hit
 
@@ -98,7 +111,7 @@ export async function handleData(url, ctx) {
   const out = json(
     { id, source: file.url, kind: file.kind, years },
     200,
-    { 'Cache-Control': `public, max-age=${ONE_DAY}` },
+    { 'Cache-Control': CACHE_CONTROL },
   )
   ctx.waitUntil(cache.put(cacheKey, out.clone()))
   return out
@@ -131,12 +144,14 @@ async function getDirIndex(dir, regex) {
   regex.lastIndex = 0
   while ((m = regex.exec(html)) !== null) index[m[1]] = m[0]
 
-  const stored = json(index, 200, { 'Cache-Control': `public, max-age=${ONE_DAY}` })
+  const stored = json(index, 200, { 'Cache-Control': CACHE_CONTROL })
   await cache.put(cacheKey, stored.clone())
   return index
 }
 
-// Parse the semicolon-separated produkt file into per-year extremes.
+// Parse the semicolon-separated produkt file into per-year aggregates:
+// temperature extremes/mean, precipitation & sunshine totals, snow, and
+// threshold day-counts (frost/ice/summer/hot days, tropical nights).
 function aggregateYears(text) {
   const lines = text.split(/\r?\n/)
   const header = lines[0].split(';').map((s) => s.trim())
@@ -144,7 +159,21 @@ function aggregateYears(text) {
   const iMax = header.indexOf('TXK') // daily maximum air temperature (2 m)
   const iMin = header.indexOf('TNK') // daily minimum air temperature (2 m)
   const iMean = header.indexOf('TMK') // daily mean air temperature
+  const iRain = header.indexOf('RSK') // daily precipitation height [mm]
+  const iSun = header.indexOf('SDK') // daily sunshine duration [h]
+  const iSnow = header.indexOf('SHK_TAG') // daily snow depth [cm]
   if (iDate < 0 || iMax < 0 || iMin < 0) throw new Error('Unexpected file columns')
+
+  const blank = (year) => ({
+    year,
+    tmax: null, tmin: null, maxDate: null, minDate: null,
+    sum: 0, n: 0, days: 0,
+    rainSum: 0, rainN: 0,
+    sunSum: 0, sunN: 0,
+    snowMax: null, snowDays: 0, snowN: 0,
+    txN: 0, tnN: 0,
+    summerDays: 0, hotDays: 0, frostDays: 0, iceDays: 0, tropNights: 0,
+  })
 
   const byYear = new Map()
   for (let k = 1; k < lines.length; k++) {
@@ -157,25 +186,58 @@ function aggregateYears(text) {
 
     let y = byYear.get(year)
     if (!y) {
-      y = { year, tmax: null, tmin: null, maxDate: null, minDate: null, sum: 0, n: 0, days: 0 }
+      y = blank(year)
       byYear.set(year, y)
     }
     y.days++
 
     const tx = num(c[iMax])
-    if (tx !== null && (y.tmax === null || tx > y.tmax)) {
-      y.tmax = tx
-      y.maxDate = date
+    if (tx !== null) {
+      y.txN++
+      if (y.tmax === null || tx > y.tmax) {
+        y.tmax = tx
+        y.maxDate = date
+      }
+      if (tx >= 30) y.hotDays++
+      if (tx >= 25) y.summerDays++
+      if (tx < 0) y.iceDays++
     }
     const tn = num(c[iMin])
-    if (tn !== null && (y.tmin === null || tn < y.tmin)) {
-      y.tmin = tn
-      y.minDate = date
+    if (tn !== null) {
+      y.tnN++
+      if (y.tmin === null || tn < y.tmin) {
+        y.tmin = tn
+        y.minDate = date
+      }
+      if (tn < 0) y.frostDays++
+      if (tn >= 20) y.tropNights++
     }
     const tm = num(c[iMean])
     if (tm !== null) {
       y.sum += tm
       y.n++
+    }
+    if (iRain >= 0) {
+      const r = num(c[iRain])
+      if (r !== null && r >= 0) {
+        y.rainSum += r
+        y.rainN++
+      }
+    }
+    if (iSun >= 0) {
+      const s = num(c[iSun])
+      if (s !== null && s >= 0) {
+        y.sunSum += s
+        y.sunN++
+      }
+    }
+    if (iSnow >= 0) {
+      const sh = num(c[iSnow])
+      if (sh !== null && sh >= 0) {
+        y.snowN++
+        if (y.snowMax === null || sh > y.snowMax) y.snowMax = sh
+        if (sh > 0) y.snowDays++
+      }
     }
   }
 
@@ -188,6 +250,17 @@ function aggregateYears(text) {
       maxDate: y.maxDate,
       minDate: y.minDate,
       days: y.days,
+      // totals (null when the station never measured that variable that year)
+      precip: y.rainN ? round1(y.rainSum) : null,
+      sun: y.sunN ? round1(y.sunSum) : null,
+      snowMax: y.snowN ? y.snowMax : null,
+      snowDays: y.snowN ? y.snowDays : null,
+      // threshold day-counts (null when the underlying temp series is absent)
+      summerDays: y.txN ? y.summerDays : null,
+      hotDays: y.txN ? y.hotDays : null,
+      iceDays: y.txN ? y.iceDays : null,
+      frostDays: y.tnN ? y.frostDays : null,
+      tropNights: y.tnN ? y.tropNights : null,
     }))
     .sort((a, b) => a.year - b.year)
 }
