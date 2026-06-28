@@ -1,0 +1,23 @@
+name = "dwddata"
+pages_build_output_dir = "dist"
+# Change to "out" for Next.js static export, "build" for CRA
+compatibility_date = "2024-09-23"
+
+# ── Pages Functions ────────────────────────────────────────────────────────────
+# Functions in functions/ are picked up automatically by wrangler pages dev.
+# API routes live under functions/api/ and are accessible at /api/*.
+#
+# Example bindings (uncomment as needed):
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "my-database"
+# database_id = "xxxx-xxxx-xxxx-xxxx"
+#
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "xxxx"
+#
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "my-bucket"

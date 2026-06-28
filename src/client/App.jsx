@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import StationPicker from './components/StationPicker.jsx'
+import StationsMap from './components/StationsMap.jsx'
+import RangeSlider from './components/RangeSlider.jsx'
 import WarmingStripes from './components/WarmingStripes.jsx'
 import YearlyTempChart from './components/YearlyTempChart.jsx'
 import { getStations, getStationData, fmtTemp, fmtDate, linregByDecade } from './lib.js'
@@ -31,6 +33,7 @@ export default function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [dataErr, setDataErr] = useState(null)
+  const [mapStations, setMapStations] = useState(null)
 
   // load catalogue once
   useEffect(() => {
@@ -78,36 +81,19 @@ export default function App() {
   }
 
   const stats = useMemo(() => (data ? computeStats(data.years) : null), [data])
-  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
   return (
     <div className="page">
       <header className="masthead reveal">
-        <div className="masthead-top">
-          <span className="rule-meta">Klima-Observatorium · Est. 1881</span>
-          <span className="rule-meta">Deutscher Wetterdienst · Open Data</span>
-        </div>
         <h1>
-          Wetter<span className="dot">·</span>Almanach
+          DWD <span className="grad">Weather</span> Stats
         </h1>
-        <div className="masthead-sub">
-          <p>
-            A field record of Germany’s changing climate — drawn live from the DWD daily
-            observation archive, charting how hot and how cold each year has ever been.
-          </p>
-          <span className="edition">
-            Edition {today}
-            <br />
-            No. {selected ? selected.id : '—'}
-          </span>
-        </div>
+        <div className="thermal-rule" />
       </header>
 
       <section className="finder reveal" style={{ animationDelay: '120ms' }}>
         <div className="finder-label">
-          <span className="kicker">
-            <span className="n">§1 </span>Choose a station
-          </span>
+          <span className="kicker">Station</span>
         </div>
         {stationsErr ? (
           <div className="error-box">Could not load the station catalogue — {stationsErr}</div>
@@ -118,9 +104,27 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <StationPicker stations={stations} selected={selected} onSelect={select} />
+          <StationPicker
+            stations={stations}
+            selected={selected}
+            onSelect={select}
+            onFiltered={setMapStations}
+          />
         )}
       </section>
+
+      {stations && (
+        <section className="section" style={{ marginTop: '34px' }}>
+          <div className="section-head">
+            <h3>Station map</h3>
+            <span className="desc">
+              {(mapStations || stations).length.toLocaleString('en')} stations match — coloured by
+              elevation. Click any to load it.
+            </span>
+          </div>
+          <StationsMap stations={mapStations || stations} selectedId={selectedId} onSelect={select} />
+        </section>
+      )}
 
       {!selectedId && stations && (
         <section className="empty-hero reveal" style={{ animationDelay: '220ms' }}>
@@ -149,7 +153,7 @@ export default function App() {
       )}
 
       {data && selected && !loading && (
-        <Dossier data={data} station={selected} stats={stats} />
+        <Dossier key={selected.id} data={data} station={selected} stats={stats} />
       )}
 
       <footer className="colophon">
@@ -161,7 +165,6 @@ export default function App() {
           · CDC daily KL
         </span>
         <span>Temperatures TXK / TNK / TMK at 2 m · °C</span>
-        <span>Built on Cloudflare Workers</span>
       </footer>
     </div>
   )
@@ -169,20 +172,41 @@ export default function App() {
 
 // ---------------------------------------------------------------------------
 function Dossier({ data, station, stats }) {
+  const firstYear = data.years[0].year
+  const lastYear = data.years[data.years.length - 1].year
+  const [range, setRange] = useState([firstYear, lastYear])
+
+  const shownYears = useMemo(
+    () => data.years.filter((y) => y.year >= range[0] && y.year <= range[1]),
+    [data.years, range],
+  )
+  const isFull = range[0] <= firstYear && range[1] >= lastYear
+
+  // mean change across the selected range (first vs last year with a mean)
+  const meanChange = useMemo(() => {
+    const wm = shownYears.filter((y) => y.tmean != null)
+    if (wm.length < 2) return null
+    const first = wm[0]
+    const last = wm[wm.length - 1]
+    return { first, last, delta: last.tmean - first.tmean }
+  }, [shownYears])
+
   return (
     <div className="dossier reveal">
       <div className="dossier-head">
-        <h2>{station.name}</h2>
-        <div className="dossier-coords">
-          <div>
-            <b>{station.lat.toFixed(4)}°N</b> · <b>{station.lon.toFixed(4)}°E</b>
+        <div>
+          <h2>{station.name}</h2>
+          <div className="dossier-coords left">
+            <b>{station.lat.toFixed(4)}°N</b> · <b>{station.lon.toFixed(4)}°E</b> ·{' '}
+            {station.elevation} m · {station.state} · station №{station.id}
           </div>
-          <div>
-            {station.elevation} m · {station.state}
-          </div>
-          <div>
-            Record {station.from.slice(0, 4)}–{station.to.slice(0, 4)} · station №{station.id}
-          </div>
+        </div>
+        <div className="chart-range">
+          <span className="flabel">Chart range</span>
+          <RangeSlider min={firstYear} max={lastYear} value={range} onChange={setRange} active={!isFull} />
+          <span className="year-readout" data-on={!isFull}>
+            {range[0]}–{range[1]}
+          </span>
         </div>
       </div>
 
@@ -204,12 +228,21 @@ function Dossier({ data, station, stats }) {
           <span className="foot">{fmtDate(stats.recLow.minDate)}</span>
         </div>
         <div className="stat">
-          <span className="label">Latest annual mean</span>
+          <span className="label">Mean change</span>
           <span className="value">
-            {fmtTemp(stats.latest.tmean)}
+            {meanChange ? (
+              <span className={meanChange.delta >= 0 ? 'trend-up' : 'trend-dn'}>
+                {meanChange.delta >= 0 ? '+' : '−'}
+                {Math.abs(meanChange.delta).toFixed(1)}
+              </span>
+            ) : (
+              '–'
+            )}
             <span className="unit">°C</span>
           </span>
-          <span className="foot">in {stats.latest.year}</span>
+          <span className="foot">
+            {meanChange ? `${meanChange.first.year} → ${meanChange.last.year}` : 'range'}
+          </span>
         </div>
         <div className="stat">
           <span className="label">Warming trend</span>
@@ -233,7 +266,7 @@ function Dossier({ data, station, stats }) {
             any combination — the axis rescales to fit.
           </span>
         </div>
-        <YearlyTempChart years={data.years} />
+        <YearlyTempChart years={shownYears} />
         <div className="legend">
           <span>
             <i className="swatch" style={{ background: 'var(--hot)' }} /> Hottest day (TXK)
@@ -258,7 +291,7 @@ function Dossier({ data, station, stats }) {
             earliest decades.
           </span>
         </div>
-        <WarmingStripes years={data.years} />
+        <WarmingStripes years={shownYears} />
       </section>
     </div>
   )
@@ -270,7 +303,6 @@ function computeStats(years) {
   const withMean = years.filter((y) => y.tmean != null)
   const recHigh = withMax.reduce((a, b) => (b.tmax > a.tmax ? b : a), withMax[0])
   const recLow = withMin.reduce((a, b) => (b.tmin < a.tmin ? b : a), withMin[0])
-  const latest = withMean[withMean.length - 1] || years[years.length - 1]
   const reg = linregByDecade(withMean.map((y) => ({ x: y.year, y: y.tmean })))
-  return { recHigh, recLow, latest, trend: reg ? reg.perDecade : 0 }
+  return { recHigh, recLow, trend: reg ? reg.perDecade : 0 }
 }

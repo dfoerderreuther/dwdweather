@@ -39,14 +39,14 @@ export function fmtTemp(t) {
 // color — a perceptual cold→hot scale for temperature values (°C)
 // ---------------------------------------------------------------------------
 const TEMP_STOPS = [
-  [-22, [20, 55, 82]], //  deep cold blue
-  [-8, [38, 92, 130]],
-  [-1, [62, 120, 150]],
-  [6, [110, 148, 132]], //  muted sage — stays distinct from the cream paper
-  [12, [196, 158, 92]], //  ochre
-  [20, [202, 112, 50]],
-  [28, [188, 72, 38]],
-  [37, [140, 40, 18]], //  deep hot
+  [-22, [28, 55, 140]], //  deep indigo-blue
+  [-8, [38, 104, 224]],
+  [-1, [86, 156, 235]],
+  [6, [150, 178, 198]], //  cool slate — distinct from white surfaces
+  [12, [232, 176, 84]], //  amber
+  [20, [244, 132, 58]],
+  [28, [240, 80, 60]],
+  [37, [183, 35, 42]], //  deep hot
 ]
 
 export function tempColor(t) {
@@ -55,13 +55,13 @@ export function tempColor(t) {
 
 // diverging blue–neutral–red scale around an anomaly (°C vs reference)
 const ANOM_STOPS = [
-  [-2.5, [23, 60, 87]],
-  [-1, [70, 120, 158]],
-  [-0.3, [150, 178, 188]],
-  [0, [226, 214, 186]],
-  [0.3, [214, 168, 120]],
-  [1, [200, 96, 52]],
-  [2.5, [143, 42, 19]],
+  [-2.5, [28, 55, 140]],
+  [-1, [56, 128, 222]],
+  [-0.3, [150, 182, 214]],
+  [0, [224, 228, 233]],
+  [0.3, [244, 184, 120]],
+  [1, [242, 92, 64]],
+  [2.5, [176, 30, 40]],
 ]
 
 export function anomalyColor(a) {

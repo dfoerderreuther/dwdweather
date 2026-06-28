@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:cf": "vite build && wrangler pages dev dist",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && ./infra/install.sh"
   },
   "dependencies": {
     "fflate": "^0.8.2",
+    "maplibre-gl": "^4.7.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

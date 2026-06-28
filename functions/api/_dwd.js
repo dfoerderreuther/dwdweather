@@ -2,6 +2,10 @@ import { unzipSync, strFromU8 } from 'fflate'
 
 // ---------------------------------------------------------------------------
 // DWD Open Data — daily climate (KL) endpoints
+//
+// Shared logic for the Pages Functions in this directory. The leading
+// underscore keeps this file out of Pages' file-based routing — it is imported
+// by stations.js / data.js, never served directly.
 // ---------------------------------------------------------------------------
 const DWD_BASE =
   'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl'
@@ -11,25 +15,10 @@ const RECENT_DIR = `${DWD_BASE}/recent/`
 
 const ONE_DAY = 86400
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url)
-    try {
-      if (url.pathname === '/api/stations') return await handleStations(ctx)
-      if (url.pathname === '/api/data') return await handleData(url, ctx)
-      if (url.pathname.startsWith('/api/')) return json({ error: 'Unknown endpoint' }, 404)
-    } catch (err) {
-      return json({ error: String(err && err.message ? err.message : err) }, 500)
-    }
-    // Everything else is the React single-page app.
-    return env.ASSETS.fetch(request)
-  },
-}
-
 // ---------------------------------------------------------------------------
 // /api/stations  — the catalogue of weather stations
 // ---------------------------------------------------------------------------
-async function handleStations(ctx) {
+export async function handleStations(ctx) {
   const cache = caches.default
   const cacheKey = new Request('https://dwd.cache/v1/stations')
   const hit = await cache.match(cacheKey)
@@ -82,7 +71,7 @@ function parseStations(text) {
 // ---------------------------------------------------------------------------
 // /api/data?station=ID  — yearly temperature aggregates for one station
 // ---------------------------------------------------------------------------
-async function handleData(url, ctx) {
+export async function handleData(url, ctx) {
   const raw = url.searchParams.get('station')
   if (!raw) return json({ error: 'Missing ?station=' }, 400)
   const id = raw.padStart(5, '0')
@@ -226,7 +215,7 @@ function latin1(bytes) {
   return out
 }
 
-function json(data, status = 200, headers = {}) {
+export function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
